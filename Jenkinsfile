@@ -319,7 +319,7 @@ Automatic rollback to version 5.0 will start.
                             echo 'Waiting for rollback application...'
 
                             bat '''
-                                timeout /t 20 /nobreak >nul
+                                ping 127.0.0.1 -n 21 >nul
                             '''
 
                             echo 'Validating rollback...'
