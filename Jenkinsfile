@@ -60,7 +60,7 @@ pipeline {
                         env.TARGET_BRANCH = 'develop'
                         env.APP_CONTAINER = 'customer-app-dev'
                         env.DB_CONTAINER = 'customer-db-dev'
-                        env.HOST_PORT = '8081'
+                        env.HOST_PORT = '8082'
                         env.NETWORK_NAME = 'customer-dev-net'
                         env.DB_VOLUME = 'customer-db-dev-data'
                         env.COMPOSE_PROJECT = 'customer-dev'
@@ -77,7 +77,7 @@ pipeline {
                         env.TARGET_BRANCH = 'release'
                         env.APP_CONTAINER = 'customer-app-uat'
                         env.DB_CONTAINER = 'customer-db-uat'
-                        env.HOST_PORT = '8082'
+                        env.HOST_PORT = '8083'
                         env.NETWORK_NAME = 'customer-uat-net'
                         env.DB_VOLUME = 'customer-db-uat-data'
                         env.COMPOSE_PROJECT = 'customer-uat'
@@ -94,7 +94,7 @@ pipeline {
                         env.TARGET_BRANCH = 'main'
                         env.APP_CONTAINER = 'customer-app-prod'
                         env.DB_CONTAINER = 'customer-db-prod'
-                        env.HOST_PORT = '8083'
+                        env.HOST_PORT = '8084'
                         env.NETWORK_NAME = 'customer-prod-net'
                         env.DB_VOLUME = 'customer-db-prod-data'
                         env.COMPOSE_PROJECT = 'customer-prod'
@@ -142,7 +142,6 @@ COMPOSE PROJECT   : ${env.COMPOSE_PROJECT}
 ============================================================
 """
 
-                    // Production confirmation
                     if (
                         params.ENVIRONMENT == 'PRODUCTION' &&
                         params.CONFIRM_PRODUCTION != 'YES'
@@ -153,7 +152,6 @@ COMPOSE PROJECT   : ${env.COMPOSE_PROJECT}
                         )
                     }
 
-                    // Prevent invalid production combinations
                     if (
                         params.ENVIRONMENT == 'PRODUCTION' &&
                         env.TARGET_BRANCH != 'main'
@@ -164,7 +162,6 @@ COMPOSE PROJECT   : ${env.COMPOSE_PROJECT}
                         )
                     }
 
-                    // Branch mapping validation
                     if (
                         params.ENVIRONMENT == 'DEV' &&
                         env.TARGET_BRANCH != 'develop'
@@ -234,13 +231,13 @@ COMPOSE PROJECT   : ${env.COMPOSE_PROJECT}
 
                 echo "Running automated tests..."
 
-               bat """
-    "${DOCKER}" run --rm ^
-        -v "%WORKSPACE%:/workspace" ^
-        -w /workspace ^
-        python:3.12-slim ^
-        sh -c "pip install -q -r app/requirements.txt && pytest tests -v"
-"""
+                bat """
+                    "${DOCKER}" run --rm ^
+                    -v "%WORKSPACE%:/workspace" ^
+                    -w /workspace ^
+                    python:3.12-slim ^
+                    sh -c "pip install -q -r app/requirements.txt && pytest tests -v"
+                """
             }
         }
 
@@ -256,14 +253,16 @@ COMPOSE PROJECT   : ${env.COMPOSE_PROJECT}
                 echo "Building Docker image ${env.IMAGE_NAME}"
 
                 bat """
+                    echo.
+                    echo ===== BUILDING DOCKER IMAGE =====
+
                     "${DOCKER}" build ^
                     -t ${env.IMAGE_NAME} ^
                     .
-                """
 
-                bat """
                     echo.
                     echo ===== DOCKER IMAGE =====
+
                     "${DOCKER}" image inspect ${env.IMAGE_NAME}
                 """
             }
@@ -271,7 +270,7 @@ COMPOSE PROJECT   : ${env.COMPOSE_PROJECT}
 
 
         // =========================================================
-        // 5. CREATE ENVIRONMENT CONFIG
+        // 5. CREATE ENVIRONMENT CONFIGURATION
         // =========================================================
 
         stage('Create Environment Configuration') {
@@ -301,6 +300,7 @@ DB_ROOT_PASSWORD=${env.DB_ROOT_PASSWORD}
                 }
 
                 bat """
+                    echo.
                     echo ===== ENVIRONMENT CONFIG CREATED =====
                     type .env
                 """
@@ -327,12 +327,14 @@ DB_ROOT_PASSWORD=${env.DB_ROOT_PASSWORD}
                 bat """
                     echo.
                     echo ===== STOPPING OLD APPLICATION =====
+
                     "${COMPOSE}" -p ${env.COMPOSE_PROJECT} down
                 """
 
                 bat """
                     echo.
                     echo ===== STARTING APPLICATION AND DATABASE =====
+
                     "${COMPOSE}" -p ${env.COMPOSE_PROJECT} up -d
                 """
 
@@ -345,6 +347,7 @@ DB_ROOT_PASSWORD=${env.DB_ROOT_PASSWORD}
                 bat """
                     echo.
                     echo ===== DOCKER PS =====
+
                     "${DOCKER}" ps -a
                 """
             }
@@ -370,18 +373,21 @@ DB_ROOT_PASSWORD=${env.DB_ROOT_PASSWORD}
                 bat """
                     echo.
                     echo ===== CHECKING ROLLBACK IMAGE =====
+
                     "${DOCKER}" image inspect ${env.IMAGE_NAME}
                 """
 
                 bat """
                     echo.
                     echo ===== STOPPING CURRENT DEPLOYMENT =====
+
                     "${COMPOSE}" -p ${env.COMPOSE_PROJECT} down
                 """
 
                 bat """
                     echo.
                     echo ===== STARTING ROLLBACK VERSION =====
+
                     "${COMPOSE}" -p ${env.COMPOSE_PROJECT} up -d
                 """
 
@@ -407,28 +413,33 @@ DB_ROOT_PASSWORD=${env.DB_ROOT_PASSWORD}
                 bat """
                     echo.
                     echo ===== APPLICATION CONTAINER =====
+
                     "${DOCKER}" inspect ${env.APP_CONTAINER}
 
                     echo.
                     echo ===== DATABASE CONTAINER =====
+
                     "${DOCKER}" inspect ${env.DB_CONTAINER}
                 """
 
                 bat """
                     echo.
                     echo ===== RUNNING CONTAINERS =====
+
                     "${DOCKER}" ps --format "table {{.Names}}\\t{{.Image}}\\t{{.Status}}\\t{{.Ports}}"
                 """
 
                 bat """
                     echo.
                     echo ===== CHECK APPLICATION STATUS =====
+
                     "${DOCKER}" inspect -f "{{.State.Status}}" ${env.APP_CONTAINER}
                 """
 
                 bat """
                     echo.
                     echo ===== CHECK DATABASE STATUS =====
+
                     "${DOCKER}" inspect -f "{{.State.Status}}" ${env.DB_CONTAINER}
                 """
             }
@@ -448,18 +459,21 @@ DB_ROOT_PASSWORD=${env.DB_ROOT_PASSWORD}
                 bat """
                     echo.
                     echo ===== NETWORK INSPECT =====
+
                     "${DOCKER}" network inspect ${env.NETWORK_NAME}
                 """
 
                 bat """
                     echo.
                     echo ===== APPLICATION NETWORKS =====
+
                     "${DOCKER}" inspect -f "{{json .NetworkSettings.Networks}}" ${env.APP_CONTAINER}
                 """
 
                 bat """
                     echo.
                     echo ===== DATABASE NETWORKS =====
+
                     "${DOCKER}" inspect -f "{{json .NetworkSettings.Networks}}" ${env.DB_CONTAINER}
                 """
             }
@@ -479,6 +493,7 @@ DB_ROOT_PASSWORD=${env.DB_ROOT_PASSWORD}
                 bat """
                     echo.
                     echo ===== DATABASE VOLUME =====
+
                     "${DOCKER}" volume inspect ${env.DB_VOLUME}
                 """
             }
@@ -514,7 +529,7 @@ DB_ROOT_PASSWORD=${env.DB_ROOT_PASSWORD}
 
             steps {
 
-                echo "Testing application container -> database container connectivity..."
+                echo "Testing application container -> database connectivity..."
 
                 bat """
                     echo.
@@ -591,14 +606,17 @@ DB_ROOT_PASSWORD=${env.DB_ROOT_PASSWORD}
 
                     echo.
                     echo ===== FINAL DOCKER STATUS =====
+
                     "${DOCKER}" ps
 
                     echo.
                     echo ===== FINAL NETWORK =====
+
                     "${DOCKER}" network inspect ${env.NETWORK_NAME}
 
                     echo.
                     echo ===== FINAL VOLUME =====
+
                     "${DOCKER}" volume inspect ${env.DB_VOLUME}
 
                     echo.
