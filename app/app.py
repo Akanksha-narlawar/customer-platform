@@ -27,6 +27,45 @@ def check_database():
         return False
 
 
+def initialize_database():
+    try:
+        connection = mysql.connector.connect(
+            host=DB_HOST,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database=DB_NAME
+        )
+
+        cursor = connection.cursor()
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS customers (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                email VARCHAR(150) NOT NULL
+            )
+        """)
+
+        cursor.execute("""
+            INSERT INTO customers (name, email)
+            SELECT 'Akanksha', 'akanksha@example.com'
+            WHERE NOT EXISTS (
+                SELECT 1 FROM customers
+                WHERE email = 'akanksha@example.com'
+            )
+        """)
+
+        connection.commit()
+
+        cursor.close()
+        connection.close()
+
+        print("Customer database initialized successfully")
+
+    except Exception as error:
+        print(f"Database initialization failed: {error}")
+
+
 @app.route("/")
 def home():
     return jsonify({
@@ -57,11 +96,42 @@ def health():
 
 @app.route("/customers/search")
 def customer_search():
-    return jsonify({
-        "feature": "customer-search",
-        "status": "available"
-    })
+    try:
+        connection = mysql.connector.connect(
+            host=DB_HOST,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database=DB_NAME
+        )
+
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT id, name, email
+            FROM customers
+            ORDER BY id
+        """)
+
+        customers = cursor.fetchall()
+
+        cursor.close()
+        connection.close()
+
+        return jsonify({
+            "feature": "customer-search",
+            "status": "success",
+            "count": len(customers),
+            "customers": customers
+        })
+
+    except Exception:
+        return jsonify({
+            "feature": "customer-search",
+            "status": "error",
+            "customers": []
+        }), 500
 
 
 if __name__ == "__main__":
+    initialize_database()
     app.run(host="0.0.0.0", port=5000)
