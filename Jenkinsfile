@@ -94,6 +94,10 @@ pipeline {
 
                     def config = configs[params.ENVIRONMENT]
 
+                    if (config == null) {
+                        error("Invalid environment: ${params.ENVIRONMENT}")
+                    }
+
                     env.TARGET_BRANCH = config.branch
                     env.TARGET_ENVIRONMENT = config.environment
                     env.APP_CONTAINER = config.app
@@ -126,7 +130,10 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
 
         stage('Checkout Selected Branch') {
             steps {
-                bat 'git fetch --all'
+
+                bat '''
+                    git fetch --all
+                '''
 
                 bat """
                     git checkout ${env.TARGET_BRANCH}
@@ -145,8 +152,15 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
             }
 
             steps {
+
                 bat '''
-                    docker run --rm ^
+                    echo Checking Docker...
+
+                    "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" version
+
+                    echo Running tests...
+
+                    "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" run --rm ^
                     -v "%WORKSPACE%:/workspace" ^
                     -w /workspace ^
                     python:3.12-slim ^
@@ -157,18 +171,24 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
 
         stage('Build Docker Image') {
             steps {
+
                 bat """
-                    docker build -t customer-app:${params.VERSION} .
+                    echo Building Docker image...
+
+                    "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" build -t customer-app:${params.VERSION} .
                 """
 
                 bat """
-                    docker image inspect customer-app:${params.VERSION}
+                    echo Checking Docker image...
+
+                    "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" image inspect customer-app:${params.VERSION}
                 """
             }
         }
 
         stage('Deploy / Rollback') {
             steps {
+
                 script {
 
                     def dbPassword = ''
@@ -185,22 +205,28 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
 
                     try {
 
-                        /*
-                         * VERSION 5.1 in PRODUCTION intentionally uses
-                         * an invalid DB hostname.
-                         *
-                         * This demonstrates failed deployment
-                         * followed by automatic rollback to 5.0.
-                         */
                         def dbHost = env.DB_CONTAINER
 
+                        /*
+                         * Intentional failure scenario.
+                         * Production version 5.1 uses an invalid DB hostname.
+                         */
                         if (
                             params.ENVIRONMENT == 'PRODUCTION' &&
                             params.ACTION == 'DEPLOY' &&
                             params.VERSION == '5.1'
                         ) {
+
                             dbHost = 'customer-db-prod-broken'
-                            echo 'TEST SCENARIO: Using invalid DB hostname to demonstrate rollback.'
+
+                            echo '''
+=========================================================
+TEST SCENARIO
+Version 5.1 uses an invalid DB hostname.
+Deployment should fail.
+Automatic rollback to version 5.0 will start.
+=========================================================
+'''
                         }
 
                         withEnv([
@@ -220,24 +246,39 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
                         ]) {
 
                             bat """
-                                docker compose -p ${env.COMPOSE_PROJECT} up -d
+                                echo Starting Docker Compose...
+
+                                "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" compose -p ${env.COMPOSE_PROJECT} up -d
                             """
                         }
 
                         echo 'Waiting for application to start...'
 
-                        bat 'timeout /t 20 /nobreak >nul'
+                        bat '''
+                            timeout /t 20 /nobreak >nul
+                        '''
+
+                        echo 'Checking application health...'
 
                         bat """
                             curl.exe --fail http://localhost:${env.HOST_PORT}/health
                         """
 
+                        echo 'Checking Docker containers...'
+
                         bat """
-                            docker ps
-                            docker network inspect ${env.NETWORK_NAME}
+                            "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" ps
                         """
 
-                        echo "FINAL RESULT: SUCCESS"
+                        echo 'Checking Docker network...'
+
+                        bat """
+                            "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" network inspect ${env.NETWORK_NAME}
+                        """
+
+                        echo '========================================'
+                        echo 'FINAL RESULT: SUCCESS'
+                        echo '========================================'
 
                     }
 
@@ -249,7 +290,7 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
                             params.VERSION == '5.1'
                         ) {
 
-                            echo 'Deployment of version 5.1 failed.'
+                            echo 'Production version 5.1 deployment failed.'
                             echo 'Starting automatic rollback to version 5.0...'
 
                             withEnv([
@@ -269,14 +310,26 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
                             ]) {
 
                                 bat """
-                                    docker compose -p ${env.COMPOSE_PROJECT} up -d
+                                    echo Restoring version 5.0...
+
+                                    "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" compose -p ${env.COMPOSE_PROJECT} up -d
                                 """
                             }
 
-                            bat 'timeout /t 20 /nobreak >nul'
+                            echo 'Waiting for rollback application...'
+
+                            bat '''
+                                timeout /t 20 /nobreak >nul
+                            '''
+
+                            echo 'Validating rollback...'
+
+                            bat '''
+                                curl.exe --fail http://localhost:8083/health
+                            '''
 
                             bat """
-                                curl.exe --fail http://localhost:8083/health
+                                "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" ps
                             """
 
                             echo '========================================'
