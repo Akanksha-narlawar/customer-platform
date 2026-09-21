@@ -1,7 +1,9 @@
 pipeline {
+
     agent any
 
     parameters {
+
         choice(
             name: 'ENVIRONMENT',
             choices: ['DEV', 'UAT', 'PRODUCTION'],
@@ -29,122 +31,199 @@ pipeline {
         choice(
             name: 'CONFIRM_PRODUCTION',
             choices: ['NO', 'YES'],
-            description: 'Required confirmation for production'
+            description: 'Required YES for production deployment'
         )
+    }
+
+    environment {
+
+        DOCKER = 'C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe'
+        COMPOSE = 'C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker-compose.exe'
+
+        IMAGE_REPO = 'customer-app'
     }
 
     stages {
 
-        stage('Resolve Configuration') {
+        // =========================================================
+        // 1. RESOLVE ENVIRONMENT
+        // =========================================================
+
+        stage('Resolve Environment') {
+
             steps {
+
                 script {
 
-                    def configs = [
-                        DEV: [
-                            branch: 'develop',
-                            environment: 'DEV',
-                            app: 'customer-app-dev',
-                            db: 'customer-db-dev',
-                            port: '8081',
-                            network: 'customer-dev-net',
-                            volume: 'customer-db-dev-data',
-                            project: 'customer-dev'
-                        ],
+                    if (params.ENVIRONMENT == 'DEV') {
 
-                        UAT: [
-                            branch: 'release',
-                            environment: 'UAT',
-                            app: 'customer-app-uat',
-                            db: 'customer-db-uat',
-                            port: '8082',
-                            network: 'customer-uat-net',
-                            volume: 'customer-db-uat-data',
-                            project: 'customer-uat'
-                        ],
+                        env.TARGET_BRANCH = 'develop'
+                        env.APP_CONTAINER = 'customer-app-dev'
+                        env.DB_CONTAINER = 'customer-db-dev'
+                        env.HOST_PORT = '8081'
+                        env.NETWORK_NAME = 'customer-dev-net'
+                        env.DB_VOLUME = 'customer-db-dev-data'
+                        env.COMPOSE_PROJECT = 'customer-dev'
+                        env.DB_HOST = 'customer-db-dev'
+                        env.DB_NAME = 'customer_db'
+                        env.DB_USER = 'customer_user'
+                        env.DB_PASSWORD = 'dev_password'
+                        env.DB_ROOT_PASSWORD = 'dev_root_password'
+                        env.ENV_NAME = 'DEV'
 
-                        PRODUCTION: [
-                            branch: 'main',
-                            environment: 'PRODUCTION',
-                            app: 'customer-app-prod',
-                            db: 'customer-db-prod',
-                            port: '8083',
-                            network: 'customer-prod-net',
-                            volume: 'customer-db-prod-data',
-                            project: 'customer-prod'
-                        ]
-                    ]
+                    }
+                    else if (params.ENVIRONMENT == 'UAT') {
 
-                    if (!params.VERSION?.trim()) {
-                        error('VERSION cannot be empty')
+                        env.TARGET_BRANCH = 'release'
+                        env.APP_CONTAINER = 'customer-app-uat'
+                        env.DB_CONTAINER = 'customer-db-uat'
+                        env.HOST_PORT = '8082'
+                        env.NETWORK_NAME = 'customer-uat-net'
+                        env.DB_VOLUME = 'customer-db-uat-data'
+                        env.COMPOSE_PROJECT = 'customer-uat'
+                        env.DB_HOST = 'customer-db-uat'
+                        env.DB_NAME = 'customer_db'
+                        env.DB_USER = 'customer_user'
+                        env.DB_PASSWORD = 'uat_password'
+                        env.DB_ROOT_PASSWORD = 'uat_root_password'
+                        env.ENV_NAME = 'UAT'
+
+                    }
+                    else if (params.ENVIRONMENT == 'PRODUCTION') {
+
+                        env.TARGET_BRANCH = 'main'
+                        env.APP_CONTAINER = 'customer-app-prod'
+                        env.DB_CONTAINER = 'customer-db-prod'
+                        env.HOST_PORT = '8083'
+                        env.NETWORK_NAME = 'customer-prod-net'
+                        env.DB_VOLUME = 'customer-db-prod-data'
+                        env.COMPOSE_PROJECT = 'customer-prod'
+                        env.DB_HOST = 'customer-db-prod'
+                        env.DB_NAME = 'customer_db'
+                        env.DB_USER = 'customer_user'
+                        env.DB_PASSWORD = 'prod_password'
+                        env.DB_ROOT_PASSWORD = 'prod_root_password'
+                        env.ENV_NAME = 'PRODUCTION'
+
+                    }
+                    else {
+
+                        error('Invalid environment selected.')
+
                     }
 
+                    env.IMAGE_NAME = "${env.IMAGE_REPO}:${params.VERSION}"
+
+                    echo """
+============================================================
+RESOLVED DEPLOYMENT CONFIGURATION
+============================================================
+
+ENVIRONMENT       : ${env.ENV_NAME}
+BRANCH            : ${env.TARGET_BRANCH}
+ACTION            : ${params.ACTION}
+VERSION           : ${params.VERSION}
+
+IMAGE             : ${env.IMAGE_NAME}
+
+APP CONTAINER     : ${env.APP_CONTAINER}
+DATABASE          : ${env.DB_CONTAINER}
+
+HOST PORT         : ${env.HOST_PORT}
+NETWORK           : ${env.NETWORK_NAME}
+DB VOLUME         : ${env.DB_VOLUME}
+
+DB HOST           : ${env.DB_HOST}
+DB NAME           : ${env.DB_NAME}
+DB USER           : ${env.DB_USER}
+
+COMPOSE PROJECT   : ${env.COMPOSE_PROJECT}
+
+============================================================
+"""
+
+                    // Production confirmation
                     if (
                         params.ENVIRONMENT == 'PRODUCTION' &&
                         params.CONFIRM_PRODUCTION != 'YES'
                     ) {
-                        error('Production deployment requires CONFIRM_PRODUCTION = YES')
+
+                        error(
+                            'PRODUCTION deployment requires CONFIRM_PRODUCTION = YES'
+                        )
+                    }
+
+                    // Prevent invalid production combinations
+                    if (
+                        params.ENVIRONMENT == 'PRODUCTION' &&
+                        env.TARGET_BRANCH != 'main'
+                    ) {
+
+                        error(
+                            'Invalid production configuration. Production must use main branch.'
+                        )
+                    }
+
+                    // Branch mapping validation
+                    if (
+                        params.ENVIRONMENT == 'DEV' &&
+                        env.TARGET_BRANCH != 'develop'
+                    ) {
+
+                        error(
+                            'Invalid DEV configuration. DEV must use develop branch.'
+                        )
                     }
 
                     if (
-                        params.ENVIRONMENT != 'PRODUCTION' &&
-                        params.CONFIRM_PRODUCTION == 'YES'
+                        params.ENVIRONMENT == 'UAT' &&
+                        env.TARGET_BRANCH != 'release'
                     ) {
-                        error('CONFIRM_PRODUCTION must be NO for DEV and UAT')
+
+                        error(
+                            'Invalid UAT configuration. UAT must use release branch.'
+                        )
                     }
-
-                    def config = configs[params.ENVIRONMENT]
-
-                    if (config == null) {
-                        error("Invalid environment: ${params.ENVIRONMENT}")
-                    }
-
-                    env.TARGET_BRANCH = config.branch
-                    env.TARGET_ENVIRONMENT = config.environment
-                    env.APP_CONTAINER = config.app
-                    env.DB_CONTAINER = config.db
-                    env.HOST_PORT = config.port
-                    env.NETWORK_NAME = config.network
-                    env.DB_VOLUME = config.volume
-                    env.COMPOSE_PROJECT = config.project
-
-                    echo """
-================ RESOLVED CONFIGURATION ================
-
-ENVIRONMENT : ${env.TARGET_ENVIRONMENT}
-BRANCH      : ${env.TARGET_BRANCH}
-ACTION      : ${params.ACTION}
-VERSION     : ${params.VERSION}
-
-APP         : ${env.APP_CONTAINER}
-DATABASE    : ${env.DB_CONTAINER}
-HOST PORT   : ${env.HOST_PORT}
-NETWORK     : ${env.NETWORK_NAME}
-DB VOLUME   : ${env.DB_VOLUME}
-COMPOSE     : ${env.COMPOSE_PROJECT}
-
-=========================================================
-"""
                 }
             }
         }
 
+
+        // =========================================================
+        // 2. CHECKOUT SELECTED BRANCH
+        // =========================================================
+
         stage('Checkout Selected Branch') {
+
             steps {
 
-                bat '''
-                    git fetch --all
-                '''
+                echo "Checking out branch: ${env.TARGET_BRANCH}"
 
                 bat """
+                    git fetch --all --prune
                     git checkout ${env.TARGET_BRANCH}
                     git reset --hard origin/${env.TARGET_BRANCH}
+                    git clean -fd
                 """
 
-                echo "Checked out branch: ${env.TARGET_BRANCH}"
+                bat """
+                    echo.
+                    echo ===== CURRENT GIT COMMIT =====
+                    git log -1 --oneline
+                    echo.
+                    echo ===== CURRENT BRANCH =====
+                    git branch --show-current
+                """
             }
         }
 
+
+        // =========================================================
+        // 3. RUN TESTS
+        // =========================================================
+
         stage('Run Tests') {
+
             when {
                 expression {
                     params.RUN_TESTS == 'YES'
@@ -153,205 +232,429 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
 
             steps {
 
-                bat '''
-                    echo Checking Docker...
+                echo "Running automated tests..."
 
-                    "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" version
-
-                    echo Running tests...
-
-                    "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" run --rm ^
-                    -v "%WORKSPACE%:/workspace" ^
-                    -w /workspace ^
-                    python:3.12-slim ^
-                    sh -c "pip install -q -r app/requirements.txt && pytest -q"
-                '''
+                bat """
+                    python -m pytest tests -v
+                """
             }
         }
+
+
+        // =========================================================
+        // 4. BUILD DOCKER IMAGE
+        // =========================================================
 
         stage('Build Docker Image') {
+
             steps {
 
-                bat """
-                    echo Building Docker image...
+                echo "Building Docker image ${env.IMAGE_NAME}"
 
-                    "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" build -t customer-app:${params.VERSION} .
+                bat """
+                    "${DOCKER}" build ^
+                    -t ${env.IMAGE_NAME} ^
+                    .
                 """
 
                 bat """
-                    echo Checking Docker image...
-
-                    "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" image inspect customer-app:${params.VERSION}
+                    echo.
+                    echo ===== DOCKER IMAGE =====
+                    "${DOCKER}" image inspect ${env.IMAGE_NAME}
                 """
             }
         }
 
-        stage('Deploy / Rollback') {
+
+        // =========================================================
+        // 5. CREATE ENVIRONMENT CONFIG
+        // =========================================================
+
+        stage('Create Environment Configuration') {
+
             steps {
 
                 script {
 
-                    def dbPassword = ''
-
-                    if (params.ENVIRONMENT == 'DEV') {
-                        dbPassword = 'dev_password'
-                    }
-                    else if (params.ENVIRONMENT == 'UAT') {
-                        dbPassword = 'uat_password'
-                    }
-                    else {
-                        dbPassword = 'prod_password'
-                    }
-
-                    try {
-
-                        def dbHost = env.DB_CONTAINER
-
-                        /*
-                         * Intentional failure scenario.
-                         * Production version 5.1 uses an invalid DB hostname.
-                         */
-                        if (
-                            params.ENVIRONMENT == 'PRODUCTION' &&
-                            params.ACTION == 'DEPLOY' &&
-                            params.VERSION == '5.1'
-                        ) {
-
-                            dbHost = 'customer-db-prod-broken'
-
-                            echo '''
-=========================================================
-TEST SCENARIO
-Version 5.1 uses an invalid DB hostname.
-Deployment should fail.
-Automatic rollback to version 5.0 will start.
-=========================================================
-'''
-                        }
-
-                        withEnv([
-                            "IMAGE_NAME=customer-app:${params.VERSION}",
-                            "APP_CONTAINER=${env.APP_CONTAINER}",
-                            "DB_CONTAINER=${env.DB_CONTAINER}",
-                            "DB_HOST=${dbHost}",
-                            "HOST_PORT=${env.HOST_PORT}",
-                            "NETWORK_NAME=${env.NETWORK_NAME}",
-                            "DB_VOLUME=${env.DB_VOLUME}",
-                            "APP_VERSION=${params.VERSION}",
-                            "ENVIRONMENT=${env.TARGET_ENVIRONMENT}",
-                            "DB_NAME=customer_db",
-                            "DB_USER=customer_user",
-                            "DB_PASSWORD=${dbPassword}",
-                            "DB_ROOT_PASSWORD=${dbPassword}"
-                        ]) {
-
-                            bat """
-                                echo Starting Docker Compose...
-
-                                "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker-compose.exe" -p ${env.COMPOSE_PROJECT} up -d
-                            """
-                        }
-
-                        echo 'Waiting for application to start...'
-
-                        bat '''
-                            timeout /t 20 /nobreak >nul
-                        '''
-
-                        echo 'Checking application health...'
-
-                        bat """
-                            curl.exe --fail http://localhost:${env.HOST_PORT}/health
-                        """
-
-                        echo 'Checking Docker containers...'
-
-                        bat """
-                            "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" ps
-                        """
-
-                        echo 'Checking Docker network...'
-
-                        bat """
-                            "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" network inspect ${env.NETWORK_NAME}
-                        """
-
-                        echo '========================================'
-                        echo 'FINAL RESULT: SUCCESS'
-                        echo '========================================'
-
-                    }
-
-                    catch (Exception deploymentError) {
-
-                        if (
-                            params.ENVIRONMENT == 'PRODUCTION' &&
-                            params.ACTION == 'DEPLOY' &&
-                            params.VERSION == '5.1'
-                        ) {
-
-                            echo 'Production version 5.1 deployment failed.'
-                            echo 'Starting automatic rollback to version 5.0...'
-
-                            withEnv([
-                                "IMAGE_NAME=customer-app:5.0",
-                                "APP_CONTAINER=${env.APP_CONTAINER}",
-                                "DB_CONTAINER=${env.DB_CONTAINER}",
-                                "DB_HOST=${env.DB_CONTAINER}",
-                                "HOST_PORT=${env.HOST_PORT}",
-                                "NETWORK_NAME=${env.NETWORK_NAME}",
-                                "DB_VOLUME=${env.DB_VOLUME}",
-                                "APP_VERSION=5.0",
-                                "ENVIRONMENT=PRODUCTION",
-                                "DB_NAME=customer_db",
-                                "DB_USER=customer_user",
-                                "DB_PASSWORD=prod_password",
-                                "DB_ROOT_PASSWORD=prod_password"
-                            ]) {
-
-                                bat """
-                                    echo Restoring version 5.0...
-
-                                    "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker-compose.exe" -p ${env.COMPOSE_PROJECT} up -d
-                                """
-                            }
-
-                            echo 'Waiting for rollback application...'
-
-                            bat '''
-                                ping 127.0.0.1 -n 21 >nul
-                            '''
-
-                            echo 'Validating rollback...'
-
-                            bat '''
-                                curl.exe --fail http://localhost:8083/health
-                            '''
-
-                            bat """
-                                "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" ps
-                            """
-
-                            echo '========================================'
-                            echo 'FINAL RESULT: ROLLBACK'
-                            echo 'Restored stable version: 5.0'
-                            echo '========================================'
-
-                            currentBuild.description = 'ROLLBACK: 5.1 -> 5.0'
-
-                        }
-                        else {
-                            throw deploymentError
-                        }
-                    }
+                    writeFile(
+                        file: '.env',
+                        text: """
+IMAGE_NAME=${env.IMAGE_NAME}
+APP_CONTAINER=${env.APP_CONTAINER}
+DB_CONTAINER=${env.DB_CONTAINER}
+DB_HOST=${env.DB_HOST}
+HOST_PORT=${env.HOST_PORT}
+NETWORK_NAME=${env.NETWORK_NAME}
+DB_VOLUME=${env.DB_VOLUME}
+APP_VERSION=${params.VERSION}
+ENVIRONMENT=${env.ENV_NAME}
+DB_NAME=${env.DB_NAME}
+DB_USER=${env.DB_USER}
+DB_PASSWORD=${env.DB_PASSWORD}
+DB_ROOT_PASSWORD=${env.DB_ROOT_PASSWORD}
+"""
+                    )
                 }
+
+                bat """
+                    echo ===== ENVIRONMENT CONFIG CREATED =====
+                    type .env
+                """
+            }
+        }
+
+
+        // =========================================================
+        // 6. DEPLOY
+        // =========================================================
+
+        stage('Deploy Application') {
+
+            when {
+                expression {
+                    params.ACTION == 'DEPLOY'
+                }
+            }
+
+            steps {
+
+                echo "Deploying ${env.ENV_NAME}"
+
+                bat """
+                    echo.
+                    echo ===== STOPPING OLD APPLICATION =====
+                    "${COMPOSE}" -p ${env.COMPOSE_PROJECT} down
+                """
+
+                bat """
+                    echo.
+                    echo ===== STARTING APPLICATION AND DATABASE =====
+                    "${COMPOSE}" -p ${env.COMPOSE_PROJECT} up -d
+                """
+
+                echo "Waiting for containers to start..."
+
+                bat """
+                    ping 127.0.0.1 -n 21 >nul
+                """
+
+                bat """
+                    echo.
+                    echo ===== DOCKER PS =====
+                    "${DOCKER}" ps -a
+                """
+            }
+        }
+
+
+        // =========================================================
+        // 7. ROLLBACK
+        // =========================================================
+
+        stage('Rollback Application') {
+
+            when {
+                expression {
+                    params.ACTION == 'ROLLBACK'
+                }
+            }
+
+            steps {
+
+                echo "Starting rollback to version ${params.VERSION}"
+
+                bat """
+                    echo.
+                    echo ===== CHECKING ROLLBACK IMAGE =====
+                    "${DOCKER}" image inspect ${env.IMAGE_NAME}
+                """
+
+                bat """
+                    echo.
+                    echo ===== STOPPING CURRENT DEPLOYMENT =====
+                    "${COMPOSE}" -p ${env.COMPOSE_PROJECT} down
+                """
+
+                bat """
+                    echo.
+                    echo ===== STARTING ROLLBACK VERSION =====
+                    "${COMPOSE}" -p ${env.COMPOSE_PROJECT} up -d
+                """
+
+                echo "Waiting for rollback containers..."
+
+                bat """
+                    ping 127.0.0.1 -n 21 >nul
+                """
+            }
+        }
+
+
+        // =========================================================
+        // 8. CONTAINER VALIDATION
+        // =========================================================
+
+        stage('Validate Containers') {
+
+            steps {
+
+                echo "Validating application and database containers..."
+
+                bat """
+                    echo.
+                    echo ===== APPLICATION CONTAINER =====
+                    "${DOCKER}" inspect ${env.APP_CONTAINER}
+
+                    echo.
+                    echo ===== DATABASE CONTAINER =====
+                    "${DOCKER}" inspect ${env.DB_CONTAINER}
+                """
+
+                bat """
+                    echo.
+                    echo ===== RUNNING CONTAINERS =====
+                    "${DOCKER}" ps --format "table {{.Names}}\\t{{.Image}}\\t{{.Status}}\\t{{.Ports}}"
+                """
+
+                bat """
+                    echo.
+                    echo ===== CHECK APPLICATION STATUS =====
+                    "${DOCKER}" inspect -f "{{.State.Status}}" ${env.APP_CONTAINER}
+                """
+
+                bat """
+                    echo.
+                    echo ===== CHECK DATABASE STATUS =====
+                    "${DOCKER}" inspect -f "{{.State.Status}}" ${env.DB_CONTAINER}
+                """
+            }
+        }
+
+
+        // =========================================================
+        // 9. NETWORK VALIDATION
+        // =========================================================
+
+        stage('Validate Docker Network') {
+
+            steps {
+
+                echo "Checking Docker network ${env.NETWORK_NAME}"
+
+                bat """
+                    echo.
+                    echo ===== NETWORK INSPECT =====
+                    "${DOCKER}" network inspect ${env.NETWORK_NAME}
+                """
+
+                bat """
+                    echo.
+                    echo ===== APPLICATION NETWORKS =====
+                    "${DOCKER}" inspect -f "{{json .NetworkSettings.Networks}}" ${env.APP_CONTAINER}
+                """
+
+                bat """
+                    echo.
+                    echo ===== DATABASE NETWORKS =====
+                    "${DOCKER}" inspect -f "{{json .NetworkSettings.Networks}}" ${env.DB_CONTAINER}
+                """
+            }
+        }
+
+
+        // =========================================================
+        // 10. VOLUME VALIDATION
+        // =========================================================
+
+        stage('Validate Database Volume') {
+
+            steps {
+
+                echo "Checking database volume ${env.DB_VOLUME}"
+
+                bat """
+                    echo.
+                    echo ===== DATABASE VOLUME =====
+                    "${DOCKER}" volume inspect ${env.DB_VOLUME}
+                """
+            }
+        }
+
+
+        // =========================================================
+        // 11. HEALTH CHECK
+        // =========================================================
+
+        stage('Health Check') {
+
+            steps {
+
+                echo "Checking application health..."
+
+                bat """
+                    echo.
+                    echo ===== APPLICATION HEALTH =====
+
+                    curl.exe --fail ^
+                    http://localhost:${env.HOST_PORT}/health
+                """
+            }
+        }
+
+
+        // =========================================================
+        // 12. APP TO DATABASE CONNECTIVITY
+        // =========================================================
+
+        stage('Validate App To Database') {
+
+            steps {
+
+                echo "Testing application container -> database container connectivity..."
+
+                bat """
+                    echo.
+                    echo ===== APP TO DATABASE TEST =====
+
+                    "${DOCKER}" exec ^
+                    ${env.APP_CONTAINER} ^
+                    python -c "import os,mysql.connector; c=mysql.connector.connect(host=os.environ['DB_HOST'],user=os.environ['DB_USER'],password=os.environ['DB_PASSWORD'],database=os.environ['DB_NAME']); print('APP_TO_DB_CONNECTION_SUCCESS'); c.close()"
+                """
+            }
+        }
+
+
+        // =========================================================
+        // 13. ENVIRONMENT AND VERSION VALIDATION
+        // =========================================================
+
+        stage('Validate Environment And Version') {
+
+            steps {
+
+                bat """
+                    echo.
+                    echo ===== APPLICATION RESPONSE =====
+
+                    curl.exe --fail ^
+                    http://localhost:${env.HOST_PORT}/
+                """
+            }
+        }
+
+
+        // =========================================================
+        // 14. CUSTOMER SEARCH VALIDATION
+        // =========================================================
+
+        stage('Validate Customer Search') {
+
+            steps {
+
+                bat """
+                    echo.
+                    echo ===== CUSTOMER SEARCH =====
+
+                    curl.exe --fail ^
+                    http://localhost:${env.HOST_PORT}/customers/search
+                """
+            }
+        }
+
+
+        // =========================================================
+        // 15. FINAL VALIDATION
+        // =========================================================
+
+        stage('Final Validation') {
+
+            steps {
+
+                bat """
+                    echo.
+                    echo ============================================================
+                    echo FINAL DEPLOYMENT VALIDATION
+                    echo ============================================================
+
+                    echo Environment : ${env.ENV_NAME}
+                    echo Branch      : ${env.TARGET_BRANCH}
+                    echo Version     : ${params.VERSION}
+                    echo Application : ${env.APP_CONTAINER}
+                    echo Database    : ${env.DB_CONTAINER}
+                    echo Network     : ${env.NETWORK_NAME}
+                    echo Volume      : ${env.DB_VOLUME}
+                    echo Port        : ${env.HOST_PORT}
+
+                    echo.
+                    echo ===== FINAL DOCKER STATUS =====
+                    "${DOCKER}" ps
+
+                    echo.
+                    echo ===== FINAL NETWORK =====
+                    "${DOCKER}" network inspect ${env.NETWORK_NAME}
+
+                    echo.
+                    echo ===== FINAL VOLUME =====
+                    "${DOCKER}" volume inspect ${env.DB_VOLUME}
+
+                    echo.
+                    echo ============================================================
+                    echo FINAL RESULT: SUCCESS
+                    echo ============================================================
+                """
             }
         }
     }
 
+
+    // =============================================================
+    // POST ACTIONS
+    // =============================================================
+
     post {
+
+        success {
+
+            echo """
+============================================================
+JENKINS PIPELINE SUCCESS
+============================================================
+
+Environment : ${params.ENVIRONMENT}
+Action      : ${params.ACTION}
+Version     : ${params.VERSION}
+
+Application : ${env.APP_CONTAINER}
+Database    : ${env.DB_CONTAINER}
+Network     : ${env.NETWORK_NAME}
+Port        : ${env.HOST_PORT}
+
+FINAL RESULT: SUCCESS
+============================================================
+"""
+        }
+
+        failure {
+
+            echo """
+============================================================
+JENKINS PIPELINE FAILED
+============================================================
+
+Environment : ${params.ENVIRONMENT}
+Action      : ${params.ACTION}
+Version     : ${params.VERSION}
+
+FINAL RESULT: FAILURE
+
+Check the stage above for the exact failure.
+============================================================
+"""
+        }
+
         always {
-            echo 'Pipeline execution completed.'
+
+            echo "Jenkins pipeline execution completed."
         }
     }
 }
