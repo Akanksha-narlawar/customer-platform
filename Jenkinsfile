@@ -94,6 +94,10 @@ pipeline {
 
                     def config = configs[params.ENVIRONMENT]
 
+                    if (config == null) {
+                        error("Invalid environment: ${params.ENVIRONMENT}")
+                    }
+
                     env.TARGET_BRANCH = config.branch
                     env.TARGET_ENVIRONMENT = config.environment
                     env.APP_CONTAINER = config.app
@@ -150,14 +154,13 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
             steps {
 
                 bat '''
-                    set "PATH=C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
-
                     echo Checking Docker...
-                    docker version
+
+                    "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" version
 
                     echo Running tests...
 
-                    docker run --rm ^
+                    "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" run --rm ^
                     -v "%WORKSPACE%:/workspace" ^
                     -w /workspace ^
                     python:3.12-slim ^
@@ -170,19 +173,15 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
             steps {
 
                 bat """
-                    set "PATH=C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
-
                     echo Building Docker image...
 
-                    docker build -t customer-app:${params.VERSION} .
+                    "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" build -t customer-app:${params.VERSION} .
                 """
 
                 bat """
-                    set "PATH=C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
-
                     echo Checking Docker image...
 
-                    docker image inspect customer-app:${params.VERSION}
+                    "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" image inspect customer-app:${params.VERSION}
                 """
             }
         }
@@ -210,23 +209,22 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
 
                         /*
                          * Intentional failure scenario.
-                         *
-                         * Production version 5.1 uses an invalid
-                         * database hostname so rollback can be demonstrated.
+                         * Production version 5.1 uses an invalid DB hostname.
                          */
                         if (
                             params.ENVIRONMENT == 'PRODUCTION' &&
                             params.ACTION == 'DEPLOY' &&
                             params.VERSION == '5.1'
                         ) {
+
                             dbHost = 'customer-db-prod-broken'
 
                             echo '''
 =========================================================
 TEST SCENARIO
-Version 5.1 will use an invalid DB hostname.
-This should cause deployment validation to fail.
-Automatic rollback to 5.0 will then start.
+Version 5.1 uses an invalid DB hostname.
+Deployment should fail.
+Automatic rollback to version 5.0 will start.
 =========================================================
 '''
                         }
@@ -248,11 +246,9 @@ Automatic rollback to 5.0 will then start.
                         ]) {
 
                             bat """
-                                set "PATH=C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
-
                                 echo Starting Docker Compose...
 
-                                docker compose -p ${env.COMPOSE_PROJECT} up -d
+                                "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" compose -p ${env.COMPOSE_PROJECT} up -d
                             """
                         }
 
@@ -271,22 +267,19 @@ Automatic rollback to 5.0 will then start.
                         echo 'Checking Docker containers...'
 
                         bat """
-                            set "PATH=C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
-
-                            docker ps
+                            "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" ps
                         """
 
                         echo 'Checking Docker network...'
 
                         bat """
-                            set "PATH=C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
-
-                            docker network inspect ${env.NETWORK_NAME}
+                            "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" network inspect ${env.NETWORK_NAME}
                         """
 
                         echo '========================================'
                         echo 'FINAL RESULT: SUCCESS'
                         echo '========================================'
+
                     }
 
                     catch (Exception deploymentError) {
@@ -317,11 +310,9 @@ Automatic rollback to 5.0 will then start.
                             ]) {
 
                                 bat """
-                                    set "PATH=C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
-
                                     echo Restoring version 5.0...
 
-                                    docker compose -p ${env.COMPOSE_PROJECT} up -d
+                                    "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" compose -p ${env.COMPOSE_PROJECT} up -d
                                 """
                             }
 
@@ -338,9 +329,7 @@ Automatic rollback to 5.0 will then start.
                             '''
 
                             bat """
-                                set "PATH=C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
-
-                                docker ps
+                                "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" ps
                             """
 
                             echo '========================================'
