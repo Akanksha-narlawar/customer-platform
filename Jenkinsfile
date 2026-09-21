@@ -126,7 +126,10 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
 
         stage('Checkout Selected Branch') {
             steps {
-                bat 'git fetch --all'
+
+                bat '''
+                    git fetch --all
+                '''
 
                 bat """
                     git checkout ${env.TARGET_BRANCH}
@@ -145,7 +148,15 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
             }
 
             steps {
+
                 bat '''
+                    set "PATH=C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
+
+                    echo Checking Docker...
+                    docker version
+
+                    echo Running tests...
+
                     docker run --rm ^
                     -v "%WORKSPACE%:/workspace" ^
                     -w /workspace ^
@@ -157,11 +168,20 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
 
         stage('Build Docker Image') {
             steps {
+
                 bat """
+                    set "PATH=C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
+
+                    echo Building Docker image...
+
                     docker build -t customer-app:${params.VERSION} .
                 """
 
                 bat """
+                    set "PATH=C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
+
+                    echo Checking Docker image...
+
                     docker image inspect customer-app:${params.VERSION}
                 """
             }
@@ -169,6 +189,7 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
 
         stage('Deploy / Rollback') {
             steps {
+
                 script {
 
                     def dbPassword = ''
@@ -185,22 +206,29 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
 
                     try {
 
-                        /*
-                         * VERSION 5.1 in PRODUCTION intentionally uses
-                         * an invalid DB hostname.
-                         *
-                         * This demonstrates failed deployment
-                         * followed by automatic rollback to 5.0.
-                         */
                         def dbHost = env.DB_CONTAINER
 
+                        /*
+                         * Intentional failure scenario.
+                         *
+                         * Production version 5.1 uses an invalid
+                         * database hostname so rollback can be demonstrated.
+                         */
                         if (
                             params.ENVIRONMENT == 'PRODUCTION' &&
                             params.ACTION == 'DEPLOY' &&
                             params.VERSION == '5.1'
                         ) {
                             dbHost = 'customer-db-prod-broken'
-                            echo 'TEST SCENARIO: Using invalid DB hostname to demonstrate rollback.'
+
+                            echo '''
+=========================================================
+TEST SCENARIO
+Version 5.1 will use an invalid DB hostname.
+This should cause deployment validation to fail.
+Automatic rollback to 5.0 will then start.
+=========================================================
+'''
                         }
 
                         withEnv([
@@ -220,25 +248,45 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
                         ]) {
 
                             bat """
+                                set "PATH=C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
+
+                                echo Starting Docker Compose...
+
                                 docker compose -p ${env.COMPOSE_PROJECT} up -d
                             """
                         }
 
                         echo 'Waiting for application to start...'
 
-                        bat 'timeout /t 20 /nobreak >nul'
+                        bat '''
+                            timeout /t 20 /nobreak >nul
+                        '''
+
+                        echo 'Checking application health...'
 
                         bat """
                             curl.exe --fail http://localhost:${env.HOST_PORT}/health
                         """
 
+                        echo 'Checking Docker containers...'
+
                         bat """
+                            set "PATH=C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
+
                             docker ps
+                        """
+
+                        echo 'Checking Docker network...'
+
+                        bat """
+                            set "PATH=C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
+
                             docker network inspect ${env.NETWORK_NAME}
                         """
 
-                        echo "FINAL RESULT: SUCCESS"
-
+                        echo '========================================'
+                        echo 'FINAL RESULT: SUCCESS'
+                        echo '========================================'
                     }
 
                     catch (Exception deploymentError) {
@@ -249,7 +297,7 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
                             params.VERSION == '5.1'
                         ) {
 
-                            echo 'Deployment of version 5.1 failed.'
+                            echo 'Production version 5.1 deployment failed.'
                             echo 'Starting automatic rollback to version 5.0...'
 
                             withEnv([
@@ -269,14 +317,30 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
                             ]) {
 
                                 bat """
+                                    set "PATH=C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
+
+                                    echo Restoring version 5.0...
+
                                     docker compose -p ${env.COMPOSE_PROJECT} up -d
                                 """
                             }
 
-                            bat 'timeout /t 20 /nobreak >nul'
+                            echo 'Waiting for rollback application...'
+
+                            bat '''
+                                timeout /t 20 /nobreak >nul
+                            '''
+
+                            echo 'Validating rollback...'
+
+                            bat '''
+                                curl.exe --fail http://localhost:8083/health
+                            '''
 
                             bat """
-                                curl.exe --fail http://localhost:8083/health
+                                set "PATH=C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;%PATH%"
+
+                                docker ps
                             """
 
                             echo '========================================'
