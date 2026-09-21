@@ -60,7 +60,7 @@ pipeline {
                         env.TARGET_BRANCH = 'develop'
                         env.APP_CONTAINER = 'customer-app-dev'
                         env.DB_CONTAINER = 'customer-db-dev'
-                        env.HOST_PORT = '8081'
+                        env.HOST_PORT = '8082'
                         env.NETWORK_NAME = 'customer-dev-net'
                         env.DB_VOLUME = 'customer-db-dev-data'
                         env.COMPOSE_PROJECT = 'customer-dev'
@@ -77,7 +77,7 @@ pipeline {
                         env.TARGET_BRANCH = 'release'
                         env.APP_CONTAINER = 'customer-app-uat'
                         env.DB_CONTAINER = 'customer-db-uat'
-                        env.HOST_PORT = '8082'
+                        env.HOST_PORT = '8083'
                         env.NETWORK_NAME = 'customer-uat-net'
                         env.DB_VOLUME = 'customer-db-uat-data'
                         env.COMPOSE_PROJECT = 'customer-uat'
@@ -94,7 +94,7 @@ pipeline {
                         env.TARGET_BRANCH = 'main'
                         env.APP_CONTAINER = 'customer-app-prod'
                         env.DB_CONTAINER = 'customer-db-prod'
-                        env.HOST_PORT = '8083'
+                        env.HOST_PORT = '8084'
                         env.NETWORK_NAME = 'customer-prod-net'
                         env.DB_VOLUME = 'customer-db-prod-data'
                         env.COMPOSE_PROJECT = 'customer-prod'
@@ -142,7 +142,6 @@ COMPOSE PROJECT   : ${env.COMPOSE_PROJECT}
 ============================================================
 """
 
-                    // Production confirmation
                     if (
                         params.ENVIRONMENT == 'PRODUCTION' &&
                         params.CONFIRM_PRODUCTION != 'YES'
@@ -153,7 +152,6 @@ COMPOSE PROJECT   : ${env.COMPOSE_PROJECT}
                         )
                     }
 
-                    // Prevent invalid production combinations
                     if (
                         params.ENVIRONMENT == 'PRODUCTION' &&
                         env.TARGET_BRANCH != 'main'
@@ -164,7 +162,6 @@ COMPOSE PROJECT   : ${env.COMPOSE_PROJECT}
                         )
                     }
 
-                    // Branch mapping validation
                     if (
                         params.ENVIRONMENT == 'DEV' &&
                         env.TARGET_BRANCH != 'develop'
@@ -184,42 +181,6 @@ COMPOSE PROJECT   : ${env.COMPOSE_PROJECT}
                             'Invalid UAT configuration. UAT must use release branch.'
                         )
                     }
-<<<<<<< HEAD
-
-                    def config = configs[params.ENVIRONMENT]
-
-                    if (config == null) {
-                        error("Invalid environment: ${params.ENVIRONMENT}")
-                    }
-
-                    env.TARGET_BRANCH = config.branch
-                    env.TARGET_ENVIRONMENT = config.environment
-                    env.APP_CONTAINER = config.app
-                    env.DB_CONTAINER = config.db
-                    env.HOST_PORT = config.port
-                    env.NETWORK_NAME = config.network
-                    env.DB_VOLUME = config.volume
-                    env.COMPOSE_PROJECT = config.project
-
-                    echo """
-================ RESOLVED CONFIGURATION ================
-
-ENVIRONMENT : ${env.TARGET_ENVIRONMENT}
-BRANCH      : ${env.TARGET_BRANCH}
-ACTION      : ${params.ACTION}
-VERSION     : ${params.VERSION}
-
-APP         : ${env.APP_CONTAINER}
-DATABASE    : ${env.DB_CONTAINER}
-HOST PORT   : ${env.HOST_PORT}
-NETWORK     : ${env.NETWORK_NAME}
-DB VOLUME   : ${env.DB_VOLUME}
-COMPOSE     : ${env.COMPOSE_PROJECT}
-
-=========================================================
-"""
-=======
->>>>>>> main
                 }
             }
         }
@@ -233,13 +194,7 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
 
             steps {
 
-<<<<<<< HEAD
-                bat '''
-                    git fetch --all
-                '''
-=======
                 echo "Checking out branch: ${env.TARGET_BRANCH}"
->>>>>>> main
 
                 bat """
                     git fetch --all --prune
@@ -274,31 +229,15 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
 
             steps {
 
-<<<<<<< HEAD
-                bat '''
-                    echo Checking Docker...
+                echo "Running automated tests..."
 
-                    "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" version
-
-                    echo Running tests...
-
-                    "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" run --rm ^
+                bat """
+                    "${DOCKER}" run --rm ^
                     -v "%WORKSPACE%:/workspace" ^
                     -w /workspace ^
                     python:3.12-slim ^
-                    sh -c "pip install -q -r app/requirements.txt && pytest -q"
-                '''
-=======
-                echo "Running automated tests..."
-
-               bat """
-    "${DOCKER}" run --rm ^
-        -v "%WORKSPACE%:/workspace" ^
-        -w /workspace ^
-        python:3.12-slim ^
-        sh -c "pip install -q -r app/requirements.txt && pytest tests -v"
-"""
->>>>>>> main
+                    sh -c "pip install -q -r app/requirements.txt && pytest tests -v"
+                """
             }
         }
 
@@ -311,38 +250,27 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
 
             steps {
 
-<<<<<<< HEAD
-                bat """
-                    echo Building Docker image...
-
-                    "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" build -t customer-app:${params.VERSION} .
-                """
-
-                bat """
-                    echo Checking Docker image...
-
-                    "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" image inspect customer-app:${params.VERSION}
-=======
                 echo "Building Docker image ${env.IMAGE_NAME}"
 
                 bat """
+                    echo.
+                    echo ===== BUILDING DOCKER IMAGE =====
+
                     "${DOCKER}" build ^
                     -t ${env.IMAGE_NAME} ^
                     .
-                """
 
-                bat """
                     echo.
                     echo ===== DOCKER IMAGE =====
+
                     "${DOCKER}" image inspect ${env.IMAGE_NAME}
->>>>>>> main
                 """
             }
         }
 
 
         // =========================================================
-        // 5. CREATE ENVIRONMENT CONFIG
+        // 5. CREATE ENVIRONMENT CONFIGURATION
         // =========================================================
 
         stage('Create Environment Configuration') {
@@ -351,161 +279,6 @@ COMPOSE     : ${env.COMPOSE_PROJECT}
 
                 script {
 
-<<<<<<< HEAD
-                    def dbPassword = ''
-
-                    if (params.ENVIRONMENT == 'DEV') {
-                        dbPassword = 'dev_password'
-                    }
-                    else if (params.ENVIRONMENT == 'UAT') {
-                        dbPassword = 'uat_password'
-                    }
-                    else {
-                        dbPassword = 'prod_password'
-                    }
-
-                    try {
-
-                        def dbHost = env.DB_CONTAINER
-
-                        /*
-                         * Intentional failure scenario.
-                         * Production version 5.1 uses an invalid DB hostname.
-                         */
-                        if (
-                            params.ENVIRONMENT == 'PRODUCTION' &&
-                            params.ACTION == 'DEPLOY' &&
-                            params.VERSION == '5.1'
-                        ) {
-
-                            dbHost = 'customer-db-prod-broken'
-
-                            echo '''
-=========================================================
-TEST SCENARIO
-Version 5.1 uses an invalid DB hostname.
-Deployment should fail.
-Automatic rollback to version 5.0 will start.
-=========================================================
-'''
-                        }
-
-                        withEnv([
-                            "IMAGE_NAME=customer-app:${params.VERSION}",
-                            "APP_CONTAINER=${env.APP_CONTAINER}",
-                            "DB_CONTAINER=${env.DB_CONTAINER}",
-                            "DB_HOST=${dbHost}",
-                            "HOST_PORT=${env.HOST_PORT}",
-                            "NETWORK_NAME=${env.NETWORK_NAME}",
-                            "DB_VOLUME=${env.DB_VOLUME}",
-                            "APP_VERSION=${params.VERSION}",
-                            "ENVIRONMENT=${env.TARGET_ENVIRONMENT}",
-                            "DB_NAME=customer_db",
-                            "DB_USER=customer_user",
-                            "DB_PASSWORD=${dbPassword}",
-                            "DB_ROOT_PASSWORD=${dbPassword}"
-                        ]) {
-
-                            bat """
-                                echo Starting Docker Compose...
-
-                                "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" compose -p ${env.COMPOSE_PROJECT} up -d
-                            """
-                        }
-
-                        echo 'Waiting for application to start...'
-
-                        bat '''
-                            ping 127.0.0.1 -n 21 >nul
-                        '''
-
-                        echo 'Checking application health...'
-
-                        bat """
-                            curl.exe --fail http://localhost:${env.HOST_PORT}/health
-                        """
-
-                        echo 'Checking Docker containers...'
-
-                        bat """
-                            "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" ps
-                        """
-
-                        echo 'Checking Docker network...'
-
-                        bat """
-                            "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" network inspect ${env.NETWORK_NAME}
-                        """
-
-                        echo '========================================'
-                        echo 'FINAL RESULT: SUCCESS'
-                        echo '========================================'
-
-                    }
-
-                    catch (Exception deploymentError) {
-
-                        if (
-                            params.ENVIRONMENT == 'PRODUCTION' &&
-                            params.ACTION == 'DEPLOY' &&
-                            params.VERSION == '5.1'
-                        ) {
-
-                            echo 'Production version 5.1 deployment failed.'
-                            echo 'Starting automatic rollback to version 5.0...'
-
-                            withEnv([
-                                "IMAGE_NAME=customer-app:5.0",
-                                "APP_CONTAINER=${env.APP_CONTAINER}",
-                                "DB_CONTAINER=${env.DB_CONTAINER}",
-                                "DB_HOST=${env.DB_CONTAINER}",
-                                "HOST_PORT=${env.HOST_PORT}",
-                                "NETWORK_NAME=${env.NETWORK_NAME}",
-                                "DB_VOLUME=${env.DB_VOLUME}",
-                                "APP_VERSION=5.0",
-                                "ENVIRONMENT=PRODUCTION",
-                                "DB_NAME=customer_db",
-                                "DB_USER=customer_user",
-                                "DB_PASSWORD=prod_password",
-                                "DB_ROOT_PASSWORD=prod_password"
-                            ]) {
-
-                                bat """
-                                    echo Restoring version 5.0...
-
-                                    "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" compose -p ${env.COMPOSE_PROJECT} up -d
-                                """
-                            }
-
-                            echo 'Waiting for rollback application...'
-
-                            bat '''
-                                ping 127.0.0.1 -n 21 >nul
-                            '''
-
-                            echo 'Validating rollback...'
-
-                            bat '''
-                                curl.exe --fail http://localhost:8083/health
-                            '''
-
-                            bat """
-                                "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" ps
-                            """
-
-                            echo '========================================'
-                            echo 'FINAL RESULT: ROLLBACK'
-                            echo 'Restored stable version: 5.0'
-                            echo '========================================'
-
-                            currentBuild.description = 'ROLLBACK: 5.1 -> 5.0'
-
-                        }
-                        else {
-                            throw deploymentError
-                        }
-                    }
-=======
                     writeFile(
                         file: '.env',
                         text: """
@@ -524,10 +297,10 @@ DB_PASSWORD=${env.DB_PASSWORD}
 DB_ROOT_PASSWORD=${env.DB_ROOT_PASSWORD}
 """
                     )
->>>>>>> main
                 }
 
                 bat """
+                    echo.
                     echo ===== ENVIRONMENT CONFIG CREATED =====
                     type .env
                 """
@@ -554,12 +327,14 @@ DB_ROOT_PASSWORD=${env.DB_ROOT_PASSWORD}
                 bat """
                     echo.
                     echo ===== STOPPING OLD APPLICATION =====
+
                     "${COMPOSE}" -p ${env.COMPOSE_PROJECT} down
                 """
 
                 bat """
                     echo.
                     echo ===== STARTING APPLICATION AND DATABASE =====
+
                     "${COMPOSE}" -p ${env.COMPOSE_PROJECT} up -d
                 """
 
@@ -572,6 +347,7 @@ DB_ROOT_PASSWORD=${env.DB_ROOT_PASSWORD}
                 bat """
                     echo.
                     echo ===== DOCKER PS =====
+
                     "${DOCKER}" ps -a
                 """
             }
@@ -597,18 +373,21 @@ DB_ROOT_PASSWORD=${env.DB_ROOT_PASSWORD}
                 bat """
                     echo.
                     echo ===== CHECKING ROLLBACK IMAGE =====
+
                     "${DOCKER}" image inspect ${env.IMAGE_NAME}
                 """
 
                 bat """
                     echo.
                     echo ===== STOPPING CURRENT DEPLOYMENT =====
+
                     "${COMPOSE}" -p ${env.COMPOSE_PROJECT} down
                 """
 
                 bat """
                     echo.
                     echo ===== STARTING ROLLBACK VERSION =====
+
                     "${COMPOSE}" -p ${env.COMPOSE_PROJECT} up -d
                 """
 
@@ -634,28 +413,33 @@ DB_ROOT_PASSWORD=${env.DB_ROOT_PASSWORD}
                 bat """
                     echo.
                     echo ===== APPLICATION CONTAINER =====
+
                     "${DOCKER}" inspect ${env.APP_CONTAINER}
 
                     echo.
                     echo ===== DATABASE CONTAINER =====
+
                     "${DOCKER}" inspect ${env.DB_CONTAINER}
                 """
 
                 bat """
                     echo.
                     echo ===== RUNNING CONTAINERS =====
+
                     "${DOCKER}" ps --format "table {{.Names}}\\t{{.Image}}\\t{{.Status}}\\t{{.Ports}}"
                 """
 
                 bat """
                     echo.
                     echo ===== CHECK APPLICATION STATUS =====
+
                     "${DOCKER}" inspect -f "{{.State.Status}}" ${env.APP_CONTAINER}
                 """
 
                 bat """
                     echo.
                     echo ===== CHECK DATABASE STATUS =====
+
                     "${DOCKER}" inspect -f "{{.State.Status}}" ${env.DB_CONTAINER}
                 """
             }
@@ -675,18 +459,21 @@ DB_ROOT_PASSWORD=${env.DB_ROOT_PASSWORD}
                 bat """
                     echo.
                     echo ===== NETWORK INSPECT =====
+
                     "${DOCKER}" network inspect ${env.NETWORK_NAME}
                 """
 
                 bat """
                     echo.
                     echo ===== APPLICATION NETWORKS =====
+
                     "${DOCKER}" inspect -f "{{json .NetworkSettings.Networks}}" ${env.APP_CONTAINER}
                 """
 
                 bat """
                     echo.
                     echo ===== DATABASE NETWORKS =====
+
                     "${DOCKER}" inspect -f "{{json .NetworkSettings.Networks}}" ${env.DB_CONTAINER}
                 """
             }
@@ -706,6 +493,7 @@ DB_ROOT_PASSWORD=${env.DB_ROOT_PASSWORD}
                 bat """
                     echo.
                     echo ===== DATABASE VOLUME =====
+
                     "${DOCKER}" volume inspect ${env.DB_VOLUME}
                 """
             }
@@ -741,7 +529,7 @@ DB_ROOT_PASSWORD=${env.DB_ROOT_PASSWORD}
 
             steps {
 
-                echo "Testing application container -> database container connectivity..."
+                echo "Testing application container -> database connectivity..."
 
                 bat """
                     echo.
@@ -818,14 +606,17 @@ DB_ROOT_PASSWORD=${env.DB_ROOT_PASSWORD}
 
                     echo.
                     echo ===== FINAL DOCKER STATUS =====
+
                     "${DOCKER}" ps
 
                     echo.
                     echo ===== FINAL NETWORK =====
+
                     "${DOCKER}" network inspect ${env.NETWORK_NAME}
 
                     echo.
                     echo ===== FINAL VOLUME =====
+
                     "${DOCKER}" volume inspect ${env.DB_VOLUME}
 
                     echo.
