@@ -56,6 +56,7 @@ def initialize_database():
         """)
 
         connection.commit()
+
         cursor.close()
         connection.close()
 
@@ -95,10 +96,40 @@ def health():
 
 @app.route("/customers/search")
 def customer_search():
-    return jsonify({
-        "feature": "customer-search",
-        "status": "available"
-    })
+    try:
+        connection = mysql.connector.connect(
+            host=DB_HOST,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database=DB_NAME
+        )
+
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT id, name, email
+            FROM customers
+            ORDER BY id
+        """)
+
+        customers = cursor.fetchall()
+
+        cursor.close()
+        connection.close()
+
+        return jsonify({
+            "feature": "customer-search",
+            "status": "success",
+            "count": len(customers),
+            "customers": customers
+        })
+
+    except Exception:
+        return jsonify({
+            "feature": "customer-search",
+            "status": "error",
+            "customers": []
+        }), 500
 
 
 initialize_database()
