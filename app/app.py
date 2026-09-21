@@ -27,6 +27,44 @@ def check_database():
         return False
 
 
+def initialize_database():
+    try:
+        connection = mysql.connector.connect(
+            host=DB_HOST,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database=DB_NAME
+        )
+
+        cursor = connection.cursor()
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS customers (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                email VARCHAR(150) NOT NULL
+            )
+        """)
+
+        cursor.execute("""
+            INSERT INTO customers (name, email)
+            SELECT 'Akanksha', 'akanksha@example.com'
+            WHERE NOT EXISTS (
+                SELECT 1 FROM customers
+                WHERE email = 'akanksha@example.com'
+            )
+        """)
+
+        connection.commit()
+        cursor.close()
+        connection.close()
+
+        print("Customer database initialized successfully")
+
+    except Exception as error:
+        print(f"Database initialization failed: {error}")
+
+
 @app.route("/")
 def home():
     return jsonify({
@@ -61,6 +99,9 @@ def customer_search():
         "feature": "customer-search",
         "status": "available"
     })
+
+
+initialize_database()
 
 
 if __name__ == "__main__":
