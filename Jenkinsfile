@@ -248,7 +248,7 @@ Automatic rollback to version 5.0 will start.
                             bat """
                                 echo Starting Docker Compose...
 
-                                "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" compose -p ${env.COMPOSE_PROJECT} up -d
+                                "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker-compose.exe" -p ${env.COMPOSE_PROJECT} up -d
                             """
                         }
 
@@ -312,7 +312,7 @@ Automatic rollback to version 5.0 will start.
                                 bat """
                                     echo Restoring version 5.0...
 
-                                    "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" compose -p ${env.COMPOSE_PROJECT} up -d
+                                    "C:\\Users\\akank\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker-compose.exe" -p ${env.COMPOSE_PROJECT} up -d
                                 """
                             }
 
