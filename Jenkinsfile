@@ -234,9 +234,13 @@ COMPOSE PROJECT   : ${env.COMPOSE_PROJECT}
 
                 echo "Running automated tests..."
 
-                bat """
-                    python -m pytest tests -v
-                """
+               bat """
+    "${DOCKER}" run --rm ^
+        -v "%WORKSPACE%:/workspace" ^
+        -w /workspace ^
+        python:3.12-slim ^
+        sh -c "pip install -q -r app/requirements.txt && pytest tests -v"
+"""
             }
         }
 
